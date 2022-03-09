@@ -24,6 +24,32 @@ helpers do
   def list_class(list)
     "complete" if completed_list?(list)
   end
+
+  def todo_class(todo)
+    "complete" if todo[:completed]
+  end
+
+  def create_hash(lists)
+    h = {}
+    lists.each_with_index do |list, index|
+      h[list] = index
+    end
+    h
+  end
+
+  def sort_lists(lists, &block)
+    sorted = create_hash(lists).sort_by do |list, _|
+      completed_list?(list) ? 1 : 0
+    end
+    sorted.each(&block)
+  end
+
+  def sort_todos(todos, &block)
+    sorted = create_hash(todos).sort_by do |todo, _|
+      todo[:completed] ? 1 : 0
+    end
+    sorted.each(&block)
+  end
 end
 
 before do
@@ -107,7 +133,7 @@ post '/lists/:id/destroy' do
 end
 
 # Return an error message if name is invalid. Returns nil if name is valid.
-def error_for_todo (name, id)
+def error_for_todo(name, id)
   if !(1..100).cover?(name.size)
     'Todo must be between 1 and 100 characters.'
   elsif session[:lists][id][:todos].any? { |todo| todo == name }
@@ -142,7 +168,6 @@ post '/lists/:list_id/todos/:todo_id/destroy' do
   session[:success] = 'The todo has been deleted.'
   redirect "/lists/#{@list_id}"
 end
-
 
 #  Update the status of the todo
 post '/lists/:list_id/todos/:todo_id' do
