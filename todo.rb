@@ -8,6 +8,24 @@ configure do
   set :session_secret, 'hello'
 end
 
+helpers do
+  def todos_remaining(list)
+    list[:todos].count { |todo| !todo[:completed] }
+  end
+
+  def total_todos(list)
+    list[:todos].size
+  end
+
+  def completed_list?(list)
+    (total_todos(list) > 0) && (todos_remaining(list) == 0)
+  end
+
+  def list_class(list)
+    "complete" if completed_list?(list)
+  end
+end
+
 before do
   session[:lists] ||= []
 end
@@ -36,7 +54,7 @@ def error_for_list_name(name)
   end
 end
 
-# Creates new list
+# Create a new list
 post '/lists' do
   list_name = params[:list_name].strip
   error = error_for_list_name(list_name)
@@ -50,21 +68,21 @@ post '/lists' do
   end
 end
 
-# Renders a page for an individual list
+# Show an individual list
 get '/lists/:id' do
-  list_id = params[:id].to_i
-  @list = session[:lists][list_id]
+  @list_id = params[:id].to_i
+  @list = session[:lists][@list_id]
   erb :list, layout: :layout
 end
 
-# Edits an existing todo list
+# Edit an existing todo list
 get '/lists/:id/edit' do
   list_id = params[:id].to_i
   @list = session[:lists][list_id]
   erb :edit_list, layout: :layout
 end
 
-# Update existing todo list
+# Update an existing todo list
 post '/lists/:id' do
   id = params[:id].to_i
   @list = session[:lists][id]
@@ -80,7 +98,7 @@ post '/lists/:id' do
   end
 end
 
-# Deletes en existing list
+# Delete an existing list
 post '/lists/:id/destroy' do
   id = params[:id].to_i
   session[:lists].delete_at(id)
@@ -89,7 +107,7 @@ post '/lists/:id/destroy' do
 end
 
 # Return an error message if name is invalid. Returns nil if name is valid.
-def error_for_todo_name(name, id)
+def error_for_todo (name, id)
   if !(1..100).cover?(name.size)
     'Todo must be between 1 and 100 characters.'
   elsif session[:lists][id][:todos].any? { |todo| todo == name }
@@ -98,26 +116,54 @@ def error_for_todo_name(name, id)
 end
 
 # Adds a todo to an existing list
-post '/lists/:id/todos' do
-  id = params[:id].to_i
+post '/lists/:list_id/todos' do
+  @list_id = params[:list_id].to_i
+  @list = session[:lists][@list_id]
   todo = params[:todo].strip
-  @list = session[:lists][id]
-  error = error_for_todo_name(todo, id)
+
+  error = error_for_todo(todo, @list_id)
   if error
     session[:error] = error
     erb :list, layout: :layout
   else
-    @list[:todos] << todo
-    session[:success] = 'Todo has been added.'
-    redirect "/lists/#{id}"
+    @list[:todos] << { name: todo, completed: false }
+    session[:success] = 'Todo has been added to list.'
+    redirect "/lists/#{@list_id}"
   end
 end
 
-# post '/lists/:id/todos' do
-#   id = params[:id].to_i
-#   todo = params[:todo].strip
-#   @list = session[:lists][id]
-#   error = error_for_todo_name(todo, id)
-#   @list[:todos] << todo
-#   redirect "/lists/#{id}"
-# end
+# Delete the todo
+post '/lists/:list_id/todos/:todo_id/destroy' do
+  @list_id = params[:list_id].to_i
+  @list = session[:lists][@list_id]
+
+  @todo_id = params[:todo_id].to_i
+  @list[:todos].delete_at(@todo_id)
+  session[:success] = 'The todo has been deleted.'
+  redirect "/lists/#{@list_id}"
+end
+
+
+#  Update the status of the todo
+post '/lists/:list_id/todos/:todo_id' do
+  @list_id = params[:list_id].to_i
+  @list = session[:lists][@list_id]
+  @todo_id = params[:todo_id].to_i
+
+  is_completed = params[:completed] == "true"
+  @list[:todos][@todo_id][:completed] = is_completed
+  session[:success] = 'Todo has been updated.'
+  redirect "/lists/#{@list_id}"
+end
+
+# Marks all todos complete
+post '/lists/:id/complete_all' do
+  @list_id = params[:id].to_i
+  @list = session[:lists][@list_id]
+
+  @list[:todos].each do |todo|
+    todo[:completed] = true
+  end
+  session[:success] = 'All todos have been completed.'
+  redirect "/lists/#{@list_id}"
+end
